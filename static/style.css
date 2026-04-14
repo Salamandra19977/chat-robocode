@@ -16,4 +16,46 @@ main {
     text-align: center;
     background-color: oklch(0.7647 0.2467 145.06);
     color: #fff;
+    width: 100%;
+    height: 4.5rem;
+}
+
+#form {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    display: flex;
+}
+
+#input {
+    width: 100%;
+    height: 4.5rem;
+    padding: 1rem;
+    font-size: 1.5rem;
+}
+
+.submit {
+    background-color: oklch(0.7647 0.2467 145.06);
+    color: #fff;
+    padding: 0 2rem;
+    font-weight: 900;
+    font-size: 1.5rem;
+    border: 0;
+}
+
+ul {
+    list-style: none;
+    padding: 5rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+li {
+    background-color: oklch(76.734% 0.16039 149.293);
+    border-radius: 1rem;
+    color: #fff;
+    padding: 1rem;
+    font-size: 1.5rem;
+    margin: 0.5rem;
 }
