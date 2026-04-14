@@ -1,6 +1,7 @@
 const http = require("http")
 const path = require("path")
 const fs = require("fs")
+const db = require("./database")
 
 const indexHtmlFile = fs.readFileSync(path.join(__dirname, "static", "index.html"))
 const scriptFile = fs.readFileSync(path.join(__dirname, "static", "script.js"))
@@ -22,9 +23,13 @@ server.listen(3000)
 const { Server } = require("socket.io")
 const io = new Server(server)
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
     console.log("user connected. id - " + socket.id)
     let userNickName = "user"
+
+    let messages = await db.getMessages()
+    socket.emit("all_messages", messages)
+
 
     socket.on("set_nickname", (nickname) => {
         userNickName = nickname
@@ -32,6 +37,7 @@ io.on("connection", (socket) => {
 
     socket.on("new_message", (message) => {
         console.log(`${socket.id} - ${message}`)
+        db.addMessage(message, 1)
         io.emit("message", userNickName + ":" + message)
     })
 })
