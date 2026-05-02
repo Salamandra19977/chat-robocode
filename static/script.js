@@ -35,5 +35,3 @@ function changeNickName() {
         socket.emit("set_nickname", nickname)
     }
 }
-
-changeNickName()
