@@ -24,6 +24,8 @@
   },
   "homepage": "https://github.com/Salamandra19977/chat-project#readme",
   "dependencies": {
+    "cookie": "^1.1.1",
+    "crypto": "^1.0.1",
     "socket.io": "^4.8.3",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1"

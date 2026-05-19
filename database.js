@@ -3,6 +3,7 @@ const dbFile = "./chat.db"
 const exists = fs.existsSync(dbFile)
 const sqlite3 = require("sqlite3").verbose()
 const dbWrapper = require("sqlite")
+const crypto = require("crypto")
 
 let db
 
@@ -78,5 +79,17 @@ module.exports = {
             `INSERT INTO user (login, password) VALUES (?, ?)`,
             [user.login, user.password]
         )
+    },
+    getAuthToken: async (user) => {
+        const candidate = await db.all(`SELECT * FROM user WHERE login = ? `, [user.login])
+        if (!candidate.length) {
+            throw "wrong login!"
+        }
+
+        if (candidate[0].password !== user.password) {
+            throw "wrong password!"
+        }
+
+        return candidate[0].user_id + "." + candidate[0].login + crypto.randomBytes(20).toString("hex")
     }
 }

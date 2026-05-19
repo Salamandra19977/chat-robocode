@@ -2,33 +2,35 @@ const http = require("http")
 const path = require("path")
 const fs = require("fs")
 const db = require("./database")
+const cookie = require("cookie")
+
+const validAuthTokens = []
 
 const indexHtmlFile = fs.readFileSync(path.join(__dirname, "static", "index.html"))
 const registerHtmlFile = fs.readFileSync(path.join(__dirname, "static", "register.html"))
 const authScript = fs.readFileSync(path.join(__dirname, "static", "auth.js"))
 const scriptFile = fs.readFileSync(path.join(__dirname, "static", "script.js"))
 const styleFile = fs.readFileSync(path.join(__dirname, "static", "style.css"))
+const loginFile = fs.readFileSync(path.join(__dirname, "static", "login.html"))
 
 const server = http.createServer((req, res) => {
     if (req.method === "GET") {
         switch(req.url) {
-            case "/": return res.end(indexHtmlFile)
-            case "/script.js": return res.end(scriptFile)
             case "/style.css": return res.end(styleFile)
             case "/register": return res.end(registerHtmlFile)
             case "/auth.js": return res.end(authScript)
+            case "/login": return res.end(loginFile)
+            default: return guarded(req, res)
         }
     }
 
     if (req.method === "POST") {
         switch(req.url) {
             case "/api/register": return registerUser(req, res)
+            case "/api/login": return loginUser(req, res)
+            default: return guarded(req, res)
         }
     }
-
-
-    res.statusCode = 404
-    return res.end("Error 404")
 })
 
 server.listen(3000)
@@ -53,6 +55,34 @@ io.on("connection", async (socket) => {
         io.emit("message", userNickName + ":" + message)
     })
 })
+
+function guarded(req, res) {
+    const credentionals = getCredentionals(req.headers?.cookie)
+    if (!credentionals) {
+        res.writeHead(302, {"Location": "/register"})
+        return res.end()
+    }
+
+    if (req.method === "GET") {
+        switch(req.url) {
+            case "/": return res.end(indexHtmlFile)
+            case "/script.js": return res.end(scriptFile)
+        }
+    }
+
+    res.statusCode = 404
+    return res.end("Error 404")
+}
+
+function getCredentionals(c = "") {
+    const cookies = cookie.parse(c)
+    const token = cookies?.token
+
+    if (!token || !validAuthTokens.includes(token)) return null
+    const [user_id, login] = token.split(".")
+    if (!user_id || !login) return null
+    return {user_id, login}
+}
 
 function registerUser(req, res) {
     let data = ""
@@ -81,4 +111,25 @@ function registerUser(req, res) {
         }
     })
 
+}
+
+function loginUser(req, res) {
+    let data = ""
+    req.on("data", function(chunk) {
+        data += chunk
+    })
+
+    req.on("end", async function(chunk) {
+        try {
+            console.log(data)
+            const user = JSON.parse(data)
+            const token = await db.getAuthToken(user)
+            validAuthTokens.push(token)
+            res.writeHead(200)
+            res.end(token)
+        } catch (error) {
+            res.writeHead(500)
+            return res.end(error)
+        }
+    })
 }
