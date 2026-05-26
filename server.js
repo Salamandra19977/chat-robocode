@@ -1,11 +1,12 @@
+require("dotenv").config()
 const http = require("http")
 const path = require("path")
 const fs = require("fs")
 const db = require("./database")
 const cookie = require("cookie")
-
 const validAuthTokens = []
 
+const PORT = process.env.PORT || 3000
 const indexHtmlFile = fs.readFileSync(path.join(__dirname, "static", "index.html"))
 const registerHtmlFile = fs.readFileSync(path.join(__dirname, "static", "register.html"))
 const authScript = fs.readFileSync(path.join(__dirname, "static", "auth.js"))
@@ -16,7 +17,9 @@ const loginFile = fs.readFileSync(path.join(__dirname, "static", "login.html"))
 const server = http.createServer((req, res) => {
     if (req.method === "GET") {
         switch(req.url) {
-            case "/style.css": return res.end(styleFile)
+            case "/style.css":
+                res.writeHead(200, { "Content-Type": "text/css" })
+                return res.end(styleFile)
             case "/register": return res.end(registerHtmlFile)
             case "/auth.js": return res.end(authScript)
             case "/login": return res.end(loginFile)
@@ -33,25 +36,34 @@ const server = http.createServer((req, res) => {
     }
 })
 
-server.listen(3000)
+server.listen(PORT, "0.0.0.0", () => {
+    console.log("Server running on port:", PORT)
+})
 
 const { Server } = require("socket.io")
 const io = new Server(server)
 
+io.use((socket, next) => {
+    const cookie = socket.handshake.auth.cookie
+    const credentionals = getCredentionals(cookie)
+    if (!credentionals) {
+        next(new Error("no auth"))
+    }
+    socket.credentionals = credentionals
+    next()
+})
+
 io.on("connection", async (socket) => {
     console.log("user connected. id - " + socket.id)
-    let userNickName = "user"
+    let userNickName = socket.credentionals?.login
+    let userId = socket.credentionals?.user_id
 
     let messages = await db.getMessages()
     socket.emit("all_messages", messages)
 
-    socket.on("set_nickname", (nickname) => {
-        userNickName = nickname
-    })
-
     socket.on("new_message", (message) => {
         console.log(`${socket.id} - ${message}`)
-        db.addMessage(message, 1)
+        db.addMessage(message, userId)
         io.emit("message", userNickName + ":" + message)
     })
 })
@@ -59,7 +71,7 @@ io.on("connection", async (socket) => {
 function guarded(req, res) {
     const credentionals = getCredentionals(req.headers?.cookie)
     if (!credentionals) {
-        res.writeHead(302, {"Location": "/register"})
+        res.writeHead(302, {"Location": "/login"})
         return res.end()
     }
 

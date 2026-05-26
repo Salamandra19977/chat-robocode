@@ -1,95 +1,117 @@
-const fs = require("fs")
-const dbFile = "./chat.db"
-const exists = fs.existsSync(dbFile)
-const sqlite3 = require("sqlite3").verbose()
-const dbWrapper = require("sqlite")
+require("dotenv").config()
+
+const { createClient } = require("@supabase/supabase-js")
 const crypto = require("crypto")
 
-let db
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY
+)
 
-dbWrapper.open({
-    filename: dbFile,
-    driver: sqlite3.Database
-}).then(async dBase => {
-    db = dBase
-    try {
-        if(!exists) {
-            await db.run(
-                `CREATE TABLE user (
-                    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    login TEXT,
-                    password TEXT
-                );`
-            )
-            await db.run(
-                `INSERT INTO user (login, password) VALUES
-                    ("admin", "admin"),
-                    ("root", "root"),
-                    ("qwerty", "12345");
-                `
-            )
-            await db.run(
-                `CREATE TABLE message (
-                    msg_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    content TEXT,
-                    author INTEGER,
-                    FOREIGN KEY(author) REFERENCES user(user_id)
-                );`
-            )
-        } else {
-            console.log(await db.all(`SELECT * FROM user`))
-        }
-
-    } catch(dbError) {
-        console.error(dbError)
-    }
-})
+console.log("SUPABASE_URL:", process.env.SUPABASE_URL)
+console.log("SUPABASE_KEY:", process.env.SUPABASE_KEY ? "OK" : "MISSING")
 
 module.exports = {
     getMessages: async () => {
-        try {
-            return await db.all(
-                `SELECT msg_id, content, login, user_id from message
-                JOIN user ON message.author = user.user_id
-                `
-            )
+        const { data, error } = await supabase
+            .from("messages")
+            .select("msg_id, content, author, users(login)")
+            .order("msg_id", { ascending: true })
 
-        } catch (dbError) {
-            console.error(dbError)
+        if (error) {
+            console.error("getMessages error:", error)
+            return []
         }
+
+        return data.map(m => ({
+            msg_id: m.msg_id,
+            content: m.content,
+            login: m.users?.login || "unknown",
+            user_id: m.author
+        }))
     },
+
     addMessage: async (msg, userId) => {
-        try {
-            await db.run(
-                `INSERT INTO message (content, author) VALUES (?, ?)`,
-                [msg, userId]
-            )
-        } catch (dbError) {
-            console.error(dbError)
+        const { error } = await supabase
+            .from("messages")
+            .insert({
+                content: msg,
+                author: userId
+            })
+
+        if (error) {
+            console.error("addMessage error:", error)
         }
     },
-
     isUserExist: async (login) => {
-        const candidate = await db.all(`SELECT * FROM user WHERE login = ?`, [login])
-        return !!candidate.length
+        const { data, error } = await supabase
+            .from("users")
+            .select("user_id")
+            .eq("login", login)
+
+        if (error) {
+            console.error("isUserExist error:", error)
+            return false
+        }
+
+        return data.length > 0
     },
 
     addUser: async (user) => {
-        await db.run(
-            `INSERT INTO user (login, password) VALUES (?, ?)`,
-            [user.login, user.password]
-        )
+        try {
+            const salt = crypto.randomBytes(16).toString("hex")
+
+            const password = crypto
+                .pbkdf2Sync(user.password, salt, 1000, 64, "sha512")
+                .toString("hex")
+
+            const { data, error } = await supabase
+                .from("users")
+                .insert({
+                    login: user.login,
+                    password,
+                    salt
+                })
+                .select()
+
+            if (error) {
+                console.error("addUser error:", error)
+                throw error
+            }
+
+            console.log("USER CREATED:", data)
+            return data
+
+        } catch (err) {
+            console.error("addUser exception:", err)
+            throw err
+        }
     },
     getAuthToken: async (user) => {
-        const candidate = await db.all(`SELECT * FROM user WHERE login = ? `, [user.login])
-        if (!candidate.length) {
-            throw "wrong login!"
+        const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("login", user.login)
+
+        if (error) {
+            console.error("login query error:", error)
+            throw "DB error"
         }
 
-        if (candidate[0].password !== user.password) {
-            throw "wrong password!"
+        if (!data.length) {
+            throw "Wrong login"
         }
 
-        return candidate[0].user_id + "." + candidate[0].login + crypto.randomBytes(20).toString("hex")
+        const u = data[0]
+
+        const hash = crypto
+            .pbkdf2Sync(user.password, u.salt, 1000, 64, "sha512")
+            .toString("hex")
+
+        if (hash !== u.password) {
+            throw "Wrong password"
+        }
+
+        return u.user_id + "." + u.login + "." + crypto.randomBytes(20).toString("hex")
     }
 }

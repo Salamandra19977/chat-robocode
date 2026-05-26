@@ -7,9 +7,6 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server"
   },
-  "engines": {
-    "node": "14.x"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Salamandra19977/chat-project.git"
@@ -30,8 +27,8 @@
     "cookie": "^1.1.1",
     "crypto": "^1.0.1",
     "socket.io": "^4.8.3",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^6.0.1"
+    "@supabase/supabase-js": "^2.0.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
